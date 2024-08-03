@@ -2,6 +2,7 @@ from PIL import Image
 import operator
 from collections import deque
 from io import StringIO
+from collections import defaultdict
 
 def add_tuple(a, b):
     return tuple(map(operator.add, a, b))
@@ -32,6 +33,7 @@ def svg_header(width, height):
 """ % (width, height)    
 
 def joined_edges(assorted_edges, keep_every_point=False):
+    print("Joining edges")
     pieces = []
     piece = []
     directions = deque([
@@ -65,9 +67,11 @@ def joined_edges(assorted_edges, keep_every_point=False):
                 break
         else:
             raise Exception ("Failed to find connecting edge")
+    print("Edges joined")
     return pieces
 
 def rgba_image_to_svg_contiguous(im, opaque=None, keep_every_point=False):
+    print("Converting RGBA image to SVG (contiguous)")
 
     # collect contiguous pixel groups
     
@@ -110,35 +114,37 @@ def rgba_image_to_svg_contiguous(im, opaque=None, keep_every_point=False):
     del adjacent
     del visited
 
+    print("Collected contiguous pixel groups")
+
     # calculate clockwise edges of pixel groups
 
     edges = {
-        (-1, 0):((0, 0), (0, 1)),
-        (0, 1):((0, 1), (1, 1)),
-        (1, 0):((1, 1), (1, 0)),
-        (0, -1):((1, 0), (0, 0)),
-        }
-            
-    color_edge_lists = {}
+        (-1, 0): ((0, 0), (0, 1)),
+        (0, 1): ((0, 1), (1, 1)),
+        (1, 0): ((1, 1), (1, 0)),
+        (0, -1): ((1, 0), (0, 0)),
+    }
+
+    color_edge_lists = defaultdict(list)
 
     for rgba, pieces in color_pixel_lists.items():
         for piece_pixel_list in pieces:
-            edge_set = set([])
+            edge_set = set()
+            piece_pixel_set = set(piece_pixel_list)
             for coord in piece_pixel_list:
                 for offset, (start_offset, end_offset) in edges.items():
                     neighbour = add_tuple(coord, offset)
+                    if neighbour in piece_pixel_set:
+                        continue
                     start = add_tuple(coord, start_offset)
                     end = add_tuple(coord, end_offset)
-                    edge = (start, end)
-                    if neighbour in piece_pixel_list:
-                        continue
-                    edge_set.add(edge)
-            if not rgba in color_edge_lists:
-                color_edge_lists[rgba] = []
+                    edge_set.add((start, end))
             color_edge_lists[rgba].append(edge_set)
 
     del color_pixel_lists
     del edges
+
+    print("Calculated clockwise edges of pixel groups")
 
     # join edges of pixel groups
 
@@ -165,9 +171,11 @@ def rgba_image_to_svg_contiguous(im, opaque=None, keep_every_point=False):
             s.write(""" " style="fill:rgb%s; fill-opacity:%.3f; stroke:none;" />\n""" % (color[0:3], float(color[3]) / 255))
             
     s.write("""</svg>\n""")
+    print("SVG conversion complete")
     return s.getvalue()
 
 def rgba_image_to_svg_pixels(im, opaque=None):
+    print("Converting RGBA image to SVG (pixels)")
     s = StringIO()
     s.write(svg_header(*im.size))
 
@@ -180,14 +188,18 @@ def rgba_image_to_svg_pixels(im, opaque=None):
                 continue
             s.write("""  <rect x="%d" y="%d" width="1" height="1" style="fill:rgb%s; fill-opacity:%.3f; stroke:none;" />\n""" % (x, y, rgba[0:3], float(rgba[2]) / 255))
     s.write("""</svg>\n""")
+    print("SVG conversion complete")
     return s.getvalue()
 
 def main():
+    print("Opening image")
     image = Image.open('examples/angular.png').convert('RGBA')
+    print("Image opened")
     svg_image = rgba_image_to_svg_contiguous(image)
     #svg_image = rgba_image_to_svg_pixels(image)
     with open("examples/angular.svg", "w") as text_file:
         text_file.write(svg_image)
+    print("SVG image saved")
 
 if __name__ == '__main__':
     main()
